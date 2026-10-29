@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="270" viewBox="0 0 1200 270" role="img" aria-labelledby="title desc">
+<title id="title">FairTicketMac · 让行程准备更从容</title><desc id="desc">macOS 原生界面，备选购物车、任务状态与清晰的深浅主题。基于 12306FairTicket 引擎。</desc>
+<rect width="1200" height="270" rx="24" fill="#101010"/>
+<rect x="56" y="52" width="62" height="62" rx="17" fill="#FF7A17"/>
+<g font-family="sans-serif">
+<text x="87" y="96" text-anchor="middle" font-size="40" font-weight="700" fill="#17100A">F</text>
+<text x="140" y="100" font-size="58" font-weight="700" fill="#FFF">FairTicketMac</text>
+<text x="58" y="159" font-size="28" fill="#D4D4D9">让行程准备更从容，让任务状态一目了然。</text>
+<path d="M58 205H1138" stroke="#343434"/>
+<text x="58" y="242" font-size="21" fill="#B7BBC2">SwiftUI · macOS 26 · Apple Silicon</text>
+<text x="1138" y="242" text-anchor="end" font-size="21" fill="#FFAC70">基于 12306FairTicket</text>
+</g></svg>

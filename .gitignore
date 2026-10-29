@@ -1,0 +1,13 @@
+.DS_Store
+.build/
+build/
+_backup/
+.workbuddy/
+.env
+.env.*
+*.dmg
+*.dSYM/
+__pycache__/
+*.pyc
+.venv/
+venv/
