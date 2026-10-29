@@ -171,6 +171,19 @@ struct FieldRow: View {
 /// acceptable.  Takes a binding rather than a `FieldSpec` because version 5 has no
 /// station *fields* — the two station editors now live inside one cart entry, and
 /// there can be an arbitrary number of them in flight.
+enum StationSuggestions {
+    static func matches(_ stationNames: [String], query: String) -> [String] {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return [] }
+        return stationNames
+            .filter { $0.localizedCaseInsensitiveContains(query) }
+            .sorted { left, right in
+                if (left == query) != (right == query) { return left == query }
+                return left < right
+            }
+    }
+}
+
 struct StationField: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.colorScheme) private var scheme
@@ -204,6 +217,7 @@ struct StationField: View {
                 }
                 .onChange(of: text) { _, _ in
                     highlighted = 0
+                    hovered = nil
                     suppressedFor = nil
                 }
 
@@ -215,15 +229,13 @@ struct StationField: View {
         .motion(Theme.Motion.snappy, value: suggestions.isEmpty)
     }
 
+    private var matches: [String] {
+        StationSuggestions.matches(model.stationNames, query: text)
+    }
+
     private var suggestions: [String] {
-        let query = text.trimmingCharacters(in: .whitespaces)
-        guard isFocused, !query.isEmpty, suppressedFor != text else { return [] }
-        return Array(
-            model.stationNames
-                .filter { $0 != query && $0.localizedCaseInsensitiveContains(query) }
-                .sorted()
-                .prefix(Self.visibleLimit)
-        )
+        guard isFocused, suppressedFor != text else { return [] }
+        return Array(matches.prefix(Self.visibleLimit))
     }
 
     private var suggestionList: some View {
@@ -279,6 +291,11 @@ struct StationField: View {
                     .accessibilityHidden(true)
                 Text(name).font(.callout)
                 Spacer(minLength: 0)
+                if name == text.trimmingCharacters(in: .whitespacesAndNewlines) {
+                    Text("精确匹配")
+                        .font(Theme.ui(12))
+                        .foregroundStyle(Theme.textSecondary(scheme))
+                }
             }
             .padding(.horizontal, Theme.Space.xs)
             .padding(.vertical, 5)
@@ -294,10 +311,7 @@ struct StationField: View {
     }
 
     private var hint: String {
-        let query = text.trimmingCharacters(in: .whitespaces)
-        let total = model.stationNames
-            .filter { $0.localizedCaseInsensitiveContains(query) }
-            .count
+        let total = matches.count
         if total > suggestions.count {
             return "共 \(total) 个匹配 · ↑↓ 选择，回车确认"
         }

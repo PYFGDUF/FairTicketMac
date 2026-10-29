@@ -13,10 +13,8 @@ struct LiveRunView: View {
 
     var body: some View {
         PageHeader(
-            title: model.latestCandidate == nil ? "运行中 · 高频查询余票" : "运行中 · 正在提交订单",
-            subtitle: model.latestCandidate == nil
-                ? "引擎正按查询间隔轮询余票，命中后自动切入下单。"
-                : "已捕获余票，引擎正按购物车顺序尝试提交订单。",
+            title: model.runHeadline,
+            subtitle: model.phaseMessage,
             eyebrow: "LIVE · RUNNING"
         )
         .padding(.bottom, Theme.Space.xs)
@@ -44,7 +42,16 @@ struct LiveRunView: View {
                 )
         }
 
-        cadenceCard
+        if [.querying, .submitting, .queueing].contains(model.phase) {
+            cadenceCard
+        } else {
+            Card(title: "任务进度") {
+                Text(model.phaseMessage.isEmpty ? model.runHeadline : model.phaseMessage)
+                    .font(Theme.ui(15))
+                    .foregroundStyle(Theme.textSecondary(scheme))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
 
         InlineNote(
             text: "提交成功后请前往 12306「待支付订单」核对。本工具不代付、不保存支付信息。",
@@ -186,19 +193,19 @@ struct LiveRunView: View {
 
                 VStack(alignment: .leading, spacing: 0) {
                     cadenceRow(
-                        state: .done,
-                        title: "常规查询 · 间隔 \(intervalText(model.double("query_interval_seconds")))",
-                        detail: windowText + " · 已完成"
+                        state: model.phase == .querying ? .active : .done,
+                        title: "查询余票 · 当前间隔 \(intervalText(model.currentQueryInterval ?? model.double("query_interval_seconds"))))",
+                        detail: windowText + " · 已查询 \(model.queryCount) 次"
                     )
                     cadenceRow(
-                        state: model.latestCandidate == nil ? .active : .done,
-                        title: "热身高频 · 间隔 \(intervalText(model.double("hot_query_interval_seconds")))",
-                        detail: "开售前后至命中 · " + (model.latestCandidate == nil ? "进行中" : "已完成")
+                        state: model.phase == .submitting ? .active : (model.phase == .queueing ? .done : .pending),
+                        title: "提交订单",
+                        detail: model.bool("auto_submit") ? "命中余票后提交" : "仅监控模式"
                     )
                     cadenceRow(
-                        state: model.latestCandidate == nil ? .pending : .active,
-                        title: "余票捕获并提交订单",
-                        detail: "命中后触发 · 命中即停"
+                        state: model.phase == .queueing ? .active : .pending,
+                        title: "排队出票",
+                        detail: "等待 12306 确认订单结果"
                     )
                 }
             }

@@ -309,11 +309,15 @@ struct BottomBar: View {
     private var headline: String {
         switch readiness {
         case .engineNotReady: return "等待引擎就绪"
-        case .running: return "正在提交订单，请勿退出应用"
+        case .running: return model.runHeadline
         case .needsAttention(let count): return "\(count) 项参数需要修改"
         // An empty cart is not a form error — the engine accepts it and would simply
         // monitor — so it is not part of the readiness rule, only of the wording.
-        case .ready: return model.cartItems.isEmpty ? "尚未加入备选" : "配置就绪，可开始任务"
+        case .ready:
+            if case .finished(let outcome) = model.runState, outcome.succeeded {
+                return "订单已提交，请核对并支付"
+            }
+            return model.cartItems.isEmpty ? "尚未加入备选" : "配置就绪，可开始任务"
         }
     }
 

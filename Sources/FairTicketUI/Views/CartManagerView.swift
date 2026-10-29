@@ -6,8 +6,8 @@ import FairTicketKit
 ///
 /// The cart page's cards are for *reading* the attempt order; this is for *working* it —
 /// reordering by drag, editing one entry in place, removing one — which is a different
-/// posture and earns its own surface.  Edits land on a local copy and are written back
-/// per row, so 取消 closes the table without having changed anything.
+/// posture and earns its own surface. Each row is edited locally, then committed
+/// explicitly; closing the table preserves rows that were already saved.
 struct CartManagerView: View {
     let onClose: () -> Void
 
@@ -19,39 +19,39 @@ struct CartManagerView: View {
     @State private var dragging: String?
     /// The entry the inline editor is holding, and where it came from.
     @State private var editing: CartItem?
+    @State private var originalEditingID: String?
     @State private var editingIndex: Int?
 
     private var entries: [CartItem] { model.cartItems }
 
-    /// The table shows four rows and counts the rest, as the design does: the panel is
-    /// a quick reorder, and a scroll area inside a modal hides exactly the rows someone
-    /// opened it to move.
-    private var visibleEntries: [CartItem] { Array(entries.prefix(4)) }
+    private var visibleEntries: [CartItem] { entries }
 
-    /// The panel's body height, from what is actually in it: four rows at most, the
-    /// "and N more" line, and the editor when one is open.
     private var panelHeight: CGFloat {
-        var height: CGFloat = 50 + CGFloat(visibleEntries.count) * 46 + 32
-        if entries.count > visibleEntries.count { height += 26 }
-        if editing != nil { height += 290 }
-        return height
+        let available = (NSApp.mainWindow?.frame.height ?? 850) - 240
+        let content = 82 + CGFloat(entries.count) * 46 + (editing == nil ? 0 : 330)
+        return max(220, min(content, available))
     }
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Space.md) {
-                    table
-                    if editing != nil {
-                        editor.transition(Theme.Motion.reveal)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Theme.Space.md) {
+                        table
+                        if editing != nil {
+                            editor.transition(Theme.Motion.reveal).id("cart-editor")
+                        }
                     }
+                    .padding(Theme.Space.lg)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(Theme.Space.lg)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(height: panelHeight)
+                .onChange(of: originalEditingID) { _, id in
+                    if id != nil { proxy.scrollTo("cart-editor", anchor: .bottom) }
+                }
             }
-            .scrollBounceBehavior(.basedOnSize)
-            .frame(height: panelHeight)
             footer
         }
         .frame(width: 740)
@@ -61,8 +61,15 @@ struct CartManagerView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.hero, style: .continuous))
         .shadow(color: .black.opacity(scheme == .dark ? 0.55 : 0.22), radius: 30, y: 12)
-        .motion(Theme.Motion.snappy, value: editing?.id)
+        .motion(Theme.Motion.snappy, value: originalEditingID)
         .motion(Theme.Motion.snappy, value: visibleEntries.map(\.id))
+        .disabled(model.isRunning)
+        .onAppear {
+            if let id = ui.cartEditingID, let index = entries.firstIndex(where: { $0.id == id }) {
+                beginEditing(index: index, item: entries[index])
+            }
+        }
+        .onDisappear { ui.cartEditingID = nil }
     }
 
     // MARK: Header
@@ -123,6 +130,7 @@ struct CartManagerView: View {
                         row(index: index, item: item)
                             .transition(Theme.Motion.item)
                             .onDrag {
+                                guard !model.isRunning else { return NSItemProvider() }
                                 dragging = item.id
                                 return NSItemProvider(object: item.id as NSString)
                             }
@@ -132,7 +140,7 @@ struct CartManagerView: View {
                                     target: item.id,
                                     dragged: { dragging },
                                     move: { source in
-                                        guard let source, source != item.id else { return }
+                                        guard !model.isRunning, let source, source != item.id else { return }
                                         withAnimation(motionEnabled ? Theme.Motion.snappy : nil) {
                                             model.moveCartItem(source, to: item.id)
                                         }
@@ -144,12 +152,7 @@ struct CartManagerView: View {
                 }
                 .padding(.top, Theme.Space.xxs)
 
-                if entries.count > visibleEntries.count {
-                    Text("还有 \(entries.count - visibleEntries.count) 项 · 在购物车页可调整顺序")
-                        .font(Theme.ui(13))
-                        .foregroundStyle(Theme.textTertiary(scheme))
-                        .padding(.top, Theme.Space.xs)
-                }
+
             }
         }
         .background(
@@ -159,7 +162,7 @@ struct CartManagerView: View {
     }
 
     private func row(index: Int, item: CartItem) -> some View {
-        let isEditing = editing?.id == item.id
+        let isEditing = originalEditingID == item.id
         return HStack(spacing: Theme.Space.sm) {
             HStack(spacing: 6) {
                 Image(systemName: "ellipsis")
@@ -225,6 +228,7 @@ struct CartManagerView: View {
 
     private func beginEditing(index: Int, item: CartItem) {
         editing = item
+        originalEditingID = item.id
         editingIndex = index
     }
 
@@ -373,10 +377,7 @@ struct CartManagerView: View {
 
     /// The index of another entry this edit would collide with, if any.
     private func duplicateOf(_ item: CartItem) -> Int? {
-        entries.firstIndex { $0.id == item.id && $0.id != editing?.id }
-            ?? entries.indices.first {
-                $0 != (editingIndex ?? -1) && entries[$0].id == item.id
-            }
+        entries.firstIndex { $0.id == item.id && $0.id != originalEditingID }
     }
 
     private func commit(_ item: CartItem) {
@@ -384,7 +385,7 @@ struct CartManagerView: View {
         // derived from the five fields, so the edited row cannot be found by the *new*
         // value, and the index captured at open time is wrong if a drag reordered the
         // list while the editor was up.
-        guard let original = editing?.id else { return }
+        guard let original = originalEditingID else { return }
         var next = entries
         guard let index = next.firstIndex(where: { $0.id == original }) else {
             cancelEditing()
@@ -400,6 +401,7 @@ struct CartManagerView: View {
 
     private func cancelEditing() {
         editing = nil
+        originalEditingID = nil
         editingIndex = nil
     }
 

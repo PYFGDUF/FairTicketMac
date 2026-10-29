@@ -538,46 +538,29 @@ struct DetailView: View {
         }
     }
 
-    /// 新增备选, centred under the entries — the design draws it as a plain word rather
-    /// than a chip, because on this page it is not competing with anything: the entries
-    /// above it are the primary content and this is the only way onward.
-    ///
-    /// The composer stays out of the way until it is asked for: with it open the page is
-    /// a form again, and the thing a returning user comes back to this page for is the
-    /// order of the entries, not the stations they already filled in.
     private var newEntryButton: some View {
-        HStack(spacing: Theme.Space.md) {
-            Spacer(minLength: 0)
+        HStack(spacing: Theme.Space.sm) {
             Button {
                 withAnimation(motionEnabled ? Theme.Motion.snappy : nil) {
                     ui.showsCartDraft.toggle()
                 }
             } label: {
-                Text(ui.showsCartDraft ? "收起填写" : "新增备选")
-                    .font(Theme.ui(15))
-                    .foregroundStyle(Theme.textSecondary(scheme))
-                    .padding(.horizontal, 14)
-                    .frame(height: 30)
-                    .contentShape(Rectangle())
+                Label(ui.showsCartDraft ? "收起填写" : "新增备选",
+                      systemImage: ui.showsCartDraft ? "chevron.up" : "plus")
             }
-            .buttonStyle(.pressable)
-            .help("填写一站一程的详细参数，可批量展开为多条备选")
+            .buttonStyle(.brandAction(height: 36))
+            .help("填写详细行程，可批量展开为多条备选")
 
-            Button {
+            Button("管理与排序") {
+                ui.cartEditingID = nil
                 ui.showsCartManager = true
-            } label: {
-                Text("管理购物车")
-                    .font(Theme.ui(15))
-                    .foregroundStyle(Theme.textTertiary(scheme))
-                    .padding(.horizontal, 14)
-                    .frame(height: 30)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.pressable)
+            .buttonStyle(.chipAction(height: 36))
             .disabled(model.cartItems.isEmpty)
-            .help("以表格调整尝试顺序、编辑或移除某一项")
+            .help("编辑、排序或移除已加入的行程")
             Spacer(minLength: 0)
         }
+        .disabled(model.isRunning)
         .padding(.top, Theme.Space.xxs)
     }
 

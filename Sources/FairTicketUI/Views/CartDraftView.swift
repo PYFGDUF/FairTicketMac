@@ -55,67 +55,44 @@ struct CartDraftCard: View {
 
     private var routeCard: some View {
         Card(title: "路线", marker: "必填") {
-            HStack(alignment: .top, spacing: Theme.Space.sm) {
-                labelled("出发站") {
-                    StationField(
-                        label: "出发站",
-                        placeholder: "例如：北京南",
-                        text: $model.cartDraft.fromStation
-                    )
-                }
-
-                alignedToControl {
-                    Button {
-                        model.swapDraftStations()
-                    } label: {
-                        Image(systemName: "arrow.up.arrow.down")
+            VStack(alignment: .leading, spacing: Theme.Space.md) {
+                HStack(alignment: .bottom, spacing: Theme.Space.sm) {
+                    labelled("出发站") {
+                        StationField(label: "出发站", placeholder: "例如：北京南", text: $model.cartDraft.fromStation)
+                    }
+                    Button { model.swapDraftStations() } label: {
+                        Image(systemName: "arrow.left.arrow.right")
                             .font(Theme.ui(14, .semibold))
-                            .frame(width: 30, height: Theme.Control.height)
+                            .frame(width: Theme.Control.height, height: Theme.Control.height)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.pressable)
                     .foregroundStyle(Theme.textSecondary(scheme))
-                    .background(
-                        Theme.chip(scheme),
-                        in: RoundedRectangle(cornerRadius: Theme.Control.radius, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Theme.Control.radius, style: .continuous)
+                    .background(Theme.chip(scheme), in: RoundedRectangle(cornerRadius: Theme.Control.radius))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: Theme.Control.radius)
                             .strokeBorder(Theme.hairline(scheme), lineWidth: 1)
-                    )
+                    }
                     .help("交换出发站和到达站")
                     .accessibilityLabel("交换出发站和到达站")
-                }
-
-                labelled("到达站") {
-                    StationField(
-                        label: "到达站",
-                        placeholder: "例如：上海虹桥",
-                        text: $model.cartDraft.toStation
-                    )
-                }
-
-                // The station cache is a property of the route inputs, not of the page,
-                // so it sits with them — as the design places it.
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("站点列表")
-                        .font(Theme.fieldLabel)
-                        .foregroundStyle(Theme.textSecondary(scheme))
-                    if model.isUpdatingStations {
-                        ProgressView()
-                            .controlSize(.small)
-                            .frame(height: Theme.Control.height)
-                    } else {
-                        Button("更新站点") {
-                            Task { await model.updateStations() }
-                        }
-                        .buttonStyle(.chipAction(height: Theme.Control.height))
-                        .disabled(model.isRunning)
-                        .help("手动从 12306 获取最新站点列表；程序启动时不会自动联网")
+                    labelled("到达站") {
+                        StationField(label: "到达站", placeholder: "例如：上海虹桥", text: $model.cartDraft.toStation)
                     }
-                    Text("任务运行中不可更新")
-                        .font(Theme.ui(12))
-                        .foregroundStyle(Theme.textTertiary(scheme))
+                }
+                HStack(spacing: Theme.Space.sm) {
+                    if model.isUpdatingStations {
+                        ProgressView().controlSize(.small)
+                            .accessibilityLabel("正在更新站点列表")
+                    }
+                    Button("更新站点") { Task { await model.updateStations() } }
+                        .buttonStyle(.chipAction(height: Theme.Control.height))
+                        .disabled(model.isRunning || model.isUpdatingStations)
+                        .help("手动从 12306 获取最新站点列表；程序启动时不会自动联网")
+                    Text(model.isRunning ? "任务运行中暂停更新" : "手动更新本地站点列表")
+                        .font(Theme.ui(13))
+                        .foregroundStyle(Theme.textSecondary(scheme))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
                 }
             }
         }
@@ -126,16 +103,12 @@ struct CartDraftCard: View {
     /// Two panels rather than a menu, because the choice changes what the rest of the
     /// card means: 指定车次 needs a code list, 不限车次 does not.
     private var scopeCard: some View {
-        Card(
-            title: "车次范围",
-            marker: "必填",
-            accessory: AnyView(
+        Card(title: "车次范围", marker: "必填") {
+            VStack(alignment: .leading, spacing: Theme.Space.md) {
                 Text("不限车次：接受这一站对的所有列车，但仅购买已加入购物车的席别")
                     .font(Theme.ui(13))
-                    .foregroundStyle(Theme.textTertiary(scheme))
-            )
-        ) {
-            HStack(alignment: .top, spacing: Theme.Space.md) {
+                    .foregroundStyle(Theme.textSecondary(scheme))
+                    .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: Theme.Space.xs) {
                     scopeOption(
                         CartItem.scopeSpecific,
@@ -148,7 +121,7 @@ struct CartDraftCard: View {
                         detail: "接受这一站对的任意列车"
                     )
                 }
-                .frame(width: 300)
+                .frame(maxWidth: .infinity)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("指定车次")
@@ -429,14 +402,7 @@ struct CartDraftCard: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// Pushes a control to the bottom of a row whose other members are label-over-control
-    /// fields, so the two line up without either side knowing the other's metrics.
-    private func alignedToControl<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 0)
-            content()
-        }
-    }
+
 }
 
 // MARK: - Train code field
@@ -455,28 +421,25 @@ struct TrainCodeField: View {
 
     var body: some View {
         let codes = model.draftTrainCodes
-        HStack(spacing: 6) {
-            FlowRow(spacing: 6, lineSpacing: 6) {
-                ForEach(codes, id: \.self) { code in
-                    chip(code)
+        VStack(alignment: .leading, spacing: Theme.Space.xs) {
+            TextField("例如：G103，G105", text: $text)
+                .textFieldStyle(.plain)
+                .font(Theme.data(15))
+                .focused($focused)
+                .fieldChrome(isFocused: focused, supportsFocus: true)
+                .accessibilityLabel("指定车次")
+            if !codes.isEmpty {
+                HStack(alignment: .top, spacing: Theme.Space.xs) {
+                    Text("已识别")
+                        .font(Theme.ui(13))
+                        .foregroundStyle(Theme.textSecondary(scheme))
+                        .padding(.top, 3)
+                    FlowRow(spacing: 6, lineSpacing: 6) {
+                        ForEach(codes, id: \.self) { code in chip(code) }
+                    }
                 }
-                TextField(codes.isEmpty ? "例如：G103，G105" : "", text: $text)
-                    .textFieldStyle(.plain)
-                    .font(Theme.data(15))
-                    .focused($focused)
-                    .frame(minWidth: 110)
             }
-            Spacer(minLength: 0)
-            Image(systemName: "chevron.down")
-                .font(Theme.ui(12, .semibold))
-                .foregroundStyle(Theme.textTertiary(scheme))
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .frame(minHeight: Theme.Control.height, alignment: .leading)
-        .fieldChrome(isFocused: focused, supportsFocus: true)
-        .contentShape(Rectangle())
-        .onTapGesture { focused = true }
     }
 
     private func chip(_ code: String) -> some View {

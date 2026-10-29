@@ -15,6 +15,7 @@ import FairTicketKit
 /// cart is shown underneath, from `preview.cartRows`.
 struct CartEditor: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var ui: UIState
     @Environment(\.colorScheme) private var scheme
     @Environment(\.motionEnabled) private var motionEnabled
     let spec: FieldSpec
@@ -33,6 +34,7 @@ struct CartEditor: View {
                     entryRow(index: index, item: item)
                         .transition(Theme.Motion.item)
                         .onDrag {
+                            guard !model.isRunning else { return NSItemProvider() }
                             dragging = item.id
                             return NSItemProvider(object: item.id as NSString)
                         }
@@ -42,7 +44,7 @@ struct CartEditor: View {
                                 target: item.id,
                                 dragged: { dragging },
                                 move: { source in
-                                    guard let source, source != item.id else { return }
+                                    guard !model.isRunning, let source, source != item.id else { return }
                                     withAnimation(motionEnabled ? Theme.Motion.snappy : nil) {
                                         model.moveCartItem(source, to: item.id)
                                     }
@@ -62,6 +64,7 @@ struct CartEditor: View {
         // Observe identity and order only: typing in a cart editor must not animate
         // every field, while add/remove/reorder all share the same short transition.
         .motion(Theme.Motion.snappy, value: entries.map(\.id))
+        .disabled(model.isRunning)
     }
 
     /// The empty cart.  A dashed outline rather than a card: it has to read as a slot to
@@ -108,6 +111,7 @@ struct CartEditor: View {
         return CartEntryRow(
             index: index + 1,
             item: item,
+            onEdit: { ui.editCartItem(item.id) },
             onRemove: {
                 withAnimation(motionEnabled ? Theme.Motion.snappy : nil) {
                     model.removeCartItem(item.id)
@@ -139,6 +143,7 @@ struct CartEditor: View {
 private struct CartEntryRow: View {
     let index: Int
     let item: CartItem
+    let onEdit: () -> Void
     let onRemove: () -> Void
     /// True while this row is the one being dragged.
     var isDragging = false
@@ -223,6 +228,12 @@ private struct CartEntryRow: View {
                     .foregroundStyle(Theme.accentText(scheme))
             }
 
+            Button(action: onEdit) {
+                Label("编辑", systemImage: "pencil")
+            }
+            .buttonStyle(.chipAction(height: 28))
+            .accessibilityLabel("编辑行程 \(index)：\(item.fromStation)到\(item.toStation)")
+
             Menu {
                 menuItems
             } label: {
@@ -276,6 +287,8 @@ private struct CartEntryRow: View {
 
     @ViewBuilder
     private var menuItems: some View {
+        Button("编辑行程", action: onEdit)
+        Divider()
         if let onMoveToTop {
             Button("移到最前") { onMoveToTop() }
         }

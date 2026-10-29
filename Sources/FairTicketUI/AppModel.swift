@@ -160,6 +160,12 @@ public final class AppModel: ObservableObject {
     private static let logLimit = 3000
     private static let validationDebounce = Duration.milliseconds(250)
 
+    @Published private(set) var isStopping = false
+
+    var runHeadline: String {
+        RunStatusPresentation.headline(phase: phase, stopping: isStopping, start: string("start_at"))
+    }
+
     public init() {}
 
     // MARK: - Connecting
@@ -753,16 +759,19 @@ public final class AppModel: ObservableObject {
 
     func stopTask() async {
         guard isRunning else { return }
+        isStopping = true
         phaseMessage = "正在停止…"
         do {
             // The engine's answer is the only evidence that the running task heard this.
             // Discarding it left the window reading 正在停止… over a task that was still
             // querying, with the form unreachable behind it and nothing in the log.
             if try await client.stopTask() == false {
+                isStopping = false
                 phaseMessage = "引擎未接受停止请求，任务仍在继续"
                 appendSystemLog("引擎未接受停止请求（stopping:false），任务仍在继续。", level: .warning)
             }
         } catch {
+            isStopping = false
             phaseMessage = "停止请求未送达"
             appendSystemLog("停止请求失败：\(error.localizedDescription)", level: .warning)
         }
@@ -775,6 +784,7 @@ public final class AppModel: ObservableObject {
     /// closed the clock.  A crash therefore left the *previous* run's 本轮用时 in place,
     /// and the result panel printed it as a fact about the run that just died.
     private func finishRun(_ outcome: RunOutcome) {
+        isStopping = false
         runState = .finished(outcome)
         if let started = runStartedAt {
             lastRunDuration = max(0, Date().timeIntervalSince(started))
@@ -792,6 +802,8 @@ public final class AppModel: ObservableObject {
     /// engine.  Shared by `startTask` and the scripted demo timelines so the two
     /// cannot drift apart.
     func resetRunState() {
+        isStopping = false
+        currentQueryInterval = nil
         safeStopMessage = nil
         preferenceWarnings.removeAll()
         latestCandidate = nil
@@ -1100,6 +1112,7 @@ public final class AppModel: ObservableObject {
     }
 
     func setCart(_ items: [CartItem]) {
+        guard !isRunning else { return }
         settings["cart_items"] = .array(items.map(\.json))
         scheduleValidation()
     }
@@ -1124,6 +1137,7 @@ public final class AppModel: ObservableObject {
     /// Reorder without re-validating: the attempt order cannot make a form invalid,
     /// and a drag produces a burst of these.
     func moveCartItem(_ id: String, to targetID: String) {
+        guard !isRunning else { return }
         var items = cartItems
         guard
             let from = items.firstIndex(where: { $0.id == id }),

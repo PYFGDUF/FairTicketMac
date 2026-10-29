@@ -34,6 +34,13 @@ public final class UIState: ObservableObject {
 
     /// Whether the cart's management table (reorder / edit / remove) is on screen.
     @Published var showsCartManager = false
+    @Published var cartEditingID: String?
+
+    func editCartItem(_ id: String) {
+        cartEditingID = id
+        showsCartManager = true
+    }
+
 
     @Published var logFilter = ""
     @Published var warningsOnly = false
