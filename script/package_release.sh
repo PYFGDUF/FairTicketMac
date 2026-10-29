@@ -29,5 +29,5 @@ ln -s /Applications "$STAGE/Applications"
 mkdir -p "$ROOT/build/releases"
 DMG="$ROOT/build/releases/FairTicketMac-$VERSION-macos-arm64.dmg"
 hdiutil create -volname "FairTicketMac $VERSION" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
-shasum -a 256 "$DMG" > "$DMG.sha256"
+(cd "$ROOT/build/releases" && shasum -a 256 "$(basename "$DMG")" > "$(basename "$DMG").sha256")
 echo "$DMG"
